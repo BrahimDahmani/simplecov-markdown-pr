@@ -12,7 +12,7 @@ module SimpleCov
         module_function
 
         def compress(numbers)
-          return "" if numbers.nil? || numbers.empty?
+          return '' if numbers.nil? || numbers.empty?
 
           sorted = numbers.sort.uniq
           ranges = []
@@ -30,7 +30,7 @@ module SimpleCov
           end
           ranges << format_range(range_start, range_end)
 
-          ranges.join(", ")
+          ranges.join(', ')
         end
 
         def format_range(range_start, range_end)

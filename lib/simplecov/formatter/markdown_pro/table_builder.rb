@@ -14,9 +14,9 @@ module SimpleCov
       #
       class TableBuilder
         ALIGN_MAP = {
-          left: ":--",
-          right: "--:",
-          center: ":-:"
+          left: ':--',
+          right: '--:',
+          center: ':-:'
         }.freeze
 
         def initialize(headers:, aligns: nil)
@@ -31,11 +31,11 @@ module SimpleCov
         end
 
         def to_md
-          return "" if @headers.empty?
+          return '' if @headers.empty?
 
           lines = []
           lines << md_row(@headers)
-          lines << md_row(@aligns.map { |a| ALIGN_MAP.fetch(a, "--") })
+          lines << md_row(@aligns.map { |a| ALIGN_MAP.fetch(a, '--') })
           @rows.each { |row| lines << md_row(row) }
           lines.join("\n")
         end
@@ -47,7 +47,7 @@ module SimpleCov
         private
 
         def md_row(cells)
-          "| #{cells.join(" | ")} |"
+          "| #{cells.join(' | ')} |"
         end
       end
     end

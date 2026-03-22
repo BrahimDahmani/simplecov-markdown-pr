@@ -1,7 +1,7 @@
 # frozen_string_literal: true
 
-require "simplecov"
-require "simplecov/formatter/markdown_pro_formatter"
+require 'simplecov'
+require 'simplecov/formatter/markdown_pro_formatter'
 
 RSpec.configure do |config|
   config.expect_with :rspec do |expectations|

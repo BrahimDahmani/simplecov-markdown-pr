@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 # Sample class with low coverage
 class Sample3
   def initialize

@@ -1,10 +1,11 @@
 # frozen_string_literal: true
 
-require "simplecov"
-require_relative "markdown_pro/version"
-require_relative "markdown_pro/configuration"
-require_relative "markdown_pro/line_ranges"
-require_relative "markdown_pro/table_builder"
+require 'fileutils'
+require 'simplecov'
+require_relative 'markdown_pro/version'
+require_relative 'markdown_pro/configuration'
+require_relative 'markdown_pro/line_ranges'
+require_relative 'markdown_pro/table_builder'
 
 module SimpleCov
   module Formatter
@@ -63,18 +64,17 @@ module SimpleCov
       # ─── Report assembly ─────────────────────────────────────────────
 
       def build_report(result)
+        branches = branches_enabled?(result)
         sections = []
         sections << build_title
         sections << build_global_summary(result)
-        sections << build_branch_summary(result) if show_branches?(result)
-        sections << "" # blank line before groups
+        sections << build_branch_summary(result) if branches
+        sections << '' # blank line before groups
 
         result.groups.each do |group_name, files|
-          sections << build_group_section(group_name, files, result)
+          sections << build_group_section(group_name, files, branches)
         end
 
-        # If no groups are defined, SimpleCov returns a single "Ungrouped" group
-        # only when there are files. Handle edge case of empty results.
         sections.compact.join("\n")
       end
 
@@ -111,18 +111,19 @@ module SimpleCov
 
       # ─── Group section ──────────────────────────────────────────────
 
-      def build_group_section(group_name, files, result)
+      def build_group_section(group_name, files, branches)
         group_pct = files.covered_percent.round(2)
         lines = []
         lines << "## #{group_name} (#{group_pct}%)\n"
 
-        table = build_files_table(files, result)
+        filtered = filter_files(files)
+        table = build_files_table(filtered, branches)
         if table.empty?
           lines << "_No files in this group._\n"
         else
           lines << table.to_md
-          lines << hidden_count_note(files)
-          lines << ""
+          lines << hidden_count_note(files, filtered)
+          lines << ''
         end
 
         lines.compact.join("\n")
@@ -130,49 +131,48 @@ module SimpleCov
 
       # ─── Files table ────────────────────────────────────────────────
 
-      def build_files_table(files, result)
-        headers, aligns = table_columns(result)
-        table = TableBuilder.new(headers: headers, aligns: aligns)
+      def build_files_table(filtered_files, branches)
+        headers, aligns = table_columns(branches)
+        table = MarkdownPro::TableBuilder.new(headers: headers, aligns: aligns)
 
-        sorted = sort_files(files)
-        filtered = filter_files(sorted)
-        capped = cap_rows(filtered)
+        sorted = sort_files(filtered_files)
+        capped = cap_rows(sorted)
 
         capped.each do |file|
-          table.add_row(file_row(file, result))
+          table.add_row(file_row(file, branches))
         end
 
         table
       end
 
-      def table_columns(result)
-        if show_branches?(result)
-          headers = ["Coverage", "File", "Lines", "Missed", "Missing", "Branch %", "Branches", "Br. missed"]
-          aligns  = [:right,     :left,  :right,  :right,   :left,     :right,     :right,     :right]
+      def table_columns(branches)
+        if branches
+          headers = ['Coverage', 'File', 'Lines', 'Missed', 'Missing', 'Branch %', 'Branches', 'Br. missed']
+          aligns  = %i[right left right right left right right right]
         else
-          headers = ["Coverage", "File", "Lines", "Missed", "Missing"]
-          aligns  = [:right,     :left,  :right,  :right,   :left]
+          headers = %w[Coverage File Lines Missed Missing]
+          aligns  = %i[right left right right left]
         end
         [headers, aligns]
       end
 
-      def file_row(file, result)
+      def file_row(file, branches)
         missing = compress_missing(file)
         row = [
           "#{file.covered_percent.round(2)}%",
-          short_filename(file),
+          escape_markdown(short_filename(file)),
           file.lines_of_code.to_s,
           file.missed_lines.size.to_s,
-          missing
+          escape_markdown(missing)
         ]
 
-        if show_branches?(result)
+        if branches
           bs = file_branch_stats(file)
-          if bs && bs[:total] > 0
+          if bs && bs[:total].positive?
             br_pct = (bs[:covered].to_f / bs[:total] * 100).round(2)
             row += ["#{br_pct}%", bs[:total].to_s, bs[:missed].to_s]
           else
-            row += ["—", "0", "0"]
+            row += ["\u2014", '0', '0']
           end
         end
 
@@ -198,24 +198,23 @@ module SimpleCov
 
       def cap_rows(files)
         max = Config.max_rows
-        return files if max.nil? || max < 0
+        return files if max.nil?
 
         files.first(max)
       end
 
-      def hidden_count_note(files)
+      def hidden_count_note(all_files, filtered_files)
         max = Config.max_rows
-        return nil if max.nil? || max < 0
+        return nil if max.nil?
 
-        filtered = Config.show_covered ? files : files.reject { |f| f.covered_percent >= 100.0 }
-        hidden = filtered.size - max
+        hidden = filtered_files.size - max
         return nil if hidden <= 0
 
-        fully_covered = files.count { |f| f.covered_percent >= 100.0 }
+        fully_covered = all_files.count { |f| f.covered_percent >= 100.0 }
         parts = []
-        parts << "#{hidden} file(s) not shown" if hidden > 0
-        parts << "#{fully_covered} file(s) with 100% coverage" if fully_covered > 0 && !Config.show_covered
-        "\n_#{parts.join(", ")}_"
+        parts << "#{hidden} file(s) not shown" if hidden.positive?
+        parts << "#{fully_covered} file(s) with 100% coverage" if fully_covered.positive? && !Config.show_covered
+        "\n_#{parts.join(', ')}_"
       end
 
       # ─── Missing lines ─────────────────────────────────────────────
@@ -227,34 +226,30 @@ module SimpleCov
       end
 
       def truncate_missing(str)
-        max = Config.missing_len
-        return str if max.nil? || max <= 0 || str.length <= max
+        max = Config.max_missing_chars
+        return str if max.nil? || str.length <= max
 
-        "#{str[0, max]}…"
+        "#{str[0, max]}\u2026"
       end
 
       # ─── Branch coverage helpers ────────────────────────────────────
 
-      def show_branches?(result)
+      def branches_enabled?(result)
         return false unless Config.show_branch_coverage
 
         result.respond_to?(:total_branches) &&
           result.total_branches.is_a?(Integer) &&
-          result.total_branches > 0
-      rescue StandardError
-        false
+          result.total_branches.positive?
       end
 
       def branch_stats(result)
-        return nil unless show_branches?(result)
+        return nil unless branches_enabled?(result)
 
         {
           total: result.total_branches,
           covered: result.covered_branches,
           missed: result.missed_branches
         }
-      rescue StandardError
-        nil
       end
 
       def file_branch_stats(file)
@@ -266,20 +261,33 @@ module SimpleCov
         return nil unless total.is_a?(Integer)
 
         { total: total, covered: covered, missed: missed }
-      rescue StandardError
-        nil
       end
 
       # ─── Utilities ──────────────────────────────────────────────────
 
       def short_filename(file)
-        file.filename.sub("#{SimpleCov.root}/", "")
+        file.filename.sub("#{SimpleCov.root}/", '')
+      end
+
+      def escape_markdown(str)
+        str.gsub('\\', '\\\\\\\\')
+           .gsub('|', '\\|')
+           .gsub('[', '\\[')
+           .gsub(']', '\\]')
+           .gsub('`', '\\`')
       end
 
       def write_file(output)
-        path = File.join(SimpleCov.coverage_path, Config.output_filename)
+        base = File.expand_path(SimpleCov.coverage_path)
+        path = File.expand_path(Config.output_filename, base)
+
+        unless path.start_with?("#{base}/") || path == base
+          raise ArgumentError, "output_filename must not escape the coverage directory: #{Config.output_filename}"
+        end
+
+        FileUtils.mkdir_p(File.dirname(path))
         File.write(path, output)
-        puts "Markdown coverage report saved to #{path}" unless Config.print_to_stdout
+        puts "Markdown coverage report saved to #{Config.output_filename}" unless Config.print_to_stdout
       end
     end
   end

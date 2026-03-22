@@ -3,7 +3,7 @@
 module SimpleCov
   module Formatter
     module MarkdownPro
-      VERSION = "0.1.0"
+      VERSION = '0.1.0'
     end
   end
 end
