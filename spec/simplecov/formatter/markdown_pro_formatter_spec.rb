@@ -50,9 +50,12 @@ RSpec.describe SimpleCov::Formatter::MarkdownProFormatter do
       expect(output).to start_with('# Coverage Report')
     end
 
-    it 'includes overall coverage summary with percentage and counts' do
+    it 'includes a summary table with line coverage and file count' do
       output = formatter.format(result)
-      expect(output).to match(%r{\*\*Overall: \d+\.\d+%\*\* — \d+/\d+ lines in 3 files})
+      expect(output).to include('### Summary')
+      expect(output).to include('**Line coverage**')
+      expect(output).to include('**Files**')
+      expect(output).to match(/\*\*\d+\.\d+%\*\*/)
     end
 
     it 'includes per-file coverage percentages' do
@@ -77,10 +80,46 @@ RSpec.describe SimpleCov::Formatter::MarkdownProFormatter do
     it 'renders a valid markdown table with pipe-delimited columns' do
       output = formatter.format(result)
       table_lines = output.lines.select { |l| l.strip.start_with?('|') }
-      expect(table_lines.size).to be >= 3 # header + separator + at least 1 row
+      # Summary table (3 lines) + group table (5 lines: header + sep + 3 rows)
+      expect(table_lines.size).to be >= 6
       table_lines.each do |line|
         expect(line.strip).to start_with('|').and end_with('|')
       end
+    end
+  end
+
+  describe 'collapsible groups' do
+    it 'wraps groups in <details> tags' do
+      output = formatter.format(result)
+      expect(output).to include('<details')
+      expect(output).to include('</details>')
+    end
+
+    it 'includes group name and coverage % in <summary>' do
+      output = formatter.format(result)
+      expect(output).to match(%r{<summary><strong>All</strong>.*\d+\.\d+% covered})
+    end
+
+    it 'includes line count and file count in <summary>' do
+      output = formatter.format(result)
+      expect(output).to match(/\d+ lines across \d+ files?\)/)
+    end
+
+    it 'uses <details open> for groups below 100% coverage' do
+      output = formatter.format(result)
+      # The "All" group has < 100% coverage, should be open
+      expect(output).to include('<details open>')
+    end
+
+    it 'uses <details> (collapsed) for groups at 100% coverage' do
+      all_covered = {
+        sample1_path => { 'lines' => [nil, 1, 1, 1, nil, nil, 1, 1, nil, nil] }
+      }
+      covered_result = SimpleCov::Result.new(all_covered)
+      output = formatter.format(covered_result)
+      # 100% group should be collapsed (no "open" attribute)
+      expect(output).to include('<details>')
+      expect(output).not_to include('<details open>')
     end
   end
 

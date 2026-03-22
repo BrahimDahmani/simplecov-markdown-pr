@@ -67,9 +67,8 @@ module SimpleCov
         branches = branches_enabled?(result)
         sections = []
         sections << build_title
-        sections << build_global_summary(result)
-        sections << build_branch_summary(result) if branches
-        sections << '' # blank line before groups
+        sections << build_summary_table(result, branches)
+        sections << ''
 
         result.groups.each do |group_name, files|
           sections << build_group_section(group_name, files, branches)
@@ -84,47 +83,61 @@ module SimpleCov
         "# #{Config.title}\n"
       end
 
-      # ─── Global summary ─────────────────────────────────────────────
+      # ─── Summary table ───────────────────────────────────────────────
 
-      def build_global_summary(result)
+      def build_summary_table(result, branches)
         covered = result.covered_lines
         missed = result.missed_lines
         total = covered + missed
         pct = result.covered_percent.round(2)
         file_count = result.source_files.size
 
-        "**Overall: #{pct}%** — #{covered}/#{total} lines in #{file_count} files"
-      end
+        table = MarkdownPro::TableBuilder.new(
+          headers: %w[Metric Value],
+          aligns: %i[left left]
+        )
+        table.add_row(['**Line coverage**', "**#{pct}%** (#{covered}/#{total} lines)"])
+        table.add_row(['**Files**', file_count.to_s])
 
-      # ─── Branch summary ─────────────────────────────────────────────
+        if branches
+          stats = branch_stats(result)
+          if stats
+            br_total = stats[:total]
+            br_covered = stats[:covered]
+            br_pct = br_total.zero? ? 100.0 : (br_covered.to_f / br_total * 100).round(2)
+            table.add_row(['**Branch coverage**', "**#{br_pct}%** (#{br_covered}/#{br_total} branches)"])
+          end
+        end
 
-      def build_branch_summary(result)
-        stats = branch_stats(result)
-        return nil unless stats
-
-        covered = stats[:covered]
-        total = stats[:total]
-        pct = total.zero? ? 100.0 : (covered.to_f / total * 100).round(2)
-
-        "**Branch coverage: #{pct}%** — #{covered}/#{total} branches"
+        "### Summary\n\n#{table.to_md}"
       end
 
       # ─── Group section ──────────────────────────────────────────────
 
       def build_group_section(group_name, files, branches)
         group_pct = files.covered_percent.round(2)
+        total_lines = files.map(&:lines_of_code).sum
+        file_count = files.size
+        open_attr = group_pct < 100.0 ? ' open' : ''
+        file_word = file_count == 1 ? 'file' : 'files'
+
         lines = []
-        lines << "## #{group_name} (#{group_pct}%)\n"
+        lines << "<details#{open_attr}>"
+        lines << "<summary><strong>#{group_name}</strong> \u2014 #{group_pct}% covered " \
+                 "(#{total_lines} lines across #{file_count} #{file_word})</summary>"
+        lines << '' # blank line required for GitHub markdown table rendering
 
         filtered = filter_files(files)
         table = build_files_table(filtered, branches)
         if table.empty?
-          lines << "_No files in this group._\n"
+          lines << '_No files in this group._'
         else
           lines << table.to_md
           lines << hidden_count_note(files, filtered)
-          lines << ''
         end
+
+        lines << '' # blank line before closing tag
+        lines << '</details>'
 
         lines.compact.join("\n")
       end
