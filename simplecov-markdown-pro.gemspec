@@ -6,7 +6,7 @@ Gem::Specification.new do |spec|
   spec.name = 'simplecov-markdown-pro'
   spec.version = SimpleCov::Formatter::MarkdownPro::VERSION
   spec.authors = ['Brahim']
-  spec.email = ['TODO@example.com']
+  spec.email = ['brahim@dokeos.com']
 
   spec.summary = 'Full-featured Markdown formatter for SimpleCov with groups, summary, and branch coverage'
   spec.description = <<~DESC
@@ -15,7 +15,7 @@ Gem::Specification.new do |spec|
     coverage support, and configurable output. Designed for CI/CD pipelines that
     post coverage as Markdown comments on pull requests.
   DESC
-  spec.homepage = 'https://github.com/TODO/simplecov-markdown-pro'
+  spec.homepage = 'https://github.com/BrahimDahmani/simplecov-markdown-pr'
   spec.license = 'MIT'
   spec.required_ruby_version = '>= 3.1'
 
