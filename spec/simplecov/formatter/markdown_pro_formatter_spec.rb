@@ -105,19 +105,8 @@ RSpec.describe SimpleCov::Formatter::MarkdownProFormatter do
       expect(output).to match(/\d+ lines across \d+ files?\)/)
     end
 
-    it 'uses <details open> for groups below 100% coverage' do
+    it 'collapses all groups by default' do
       output = formatter.format(result)
-      # The "All" group has < 100% coverage, should be open
-      expect(output).to include('<details open>')
-    end
-
-    it 'uses <details> (collapsed) for groups at 100% coverage' do
-      all_covered = {
-        sample1_path => { 'lines' => [nil, 1, 1, 1, nil, nil, 1, 1, nil, nil] }
-      }
-      covered_result = SimpleCov::Result.new(all_covered)
-      output = formatter.format(covered_result)
-      # 100% group should be collapsed (no "open" attribute)
       expect(output).to include('<details>')
       expect(output).not_to include('<details open>')
     end

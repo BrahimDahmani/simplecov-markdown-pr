@@ -118,11 +118,10 @@ module SimpleCov
         group_pct = files.covered_percent.round(2)
         total_lines = files.map(&:lines_of_code).sum
         file_count = files.size
-        open_attr = group_pct < 100.0 ? ' open' : ''
         file_word = file_count == 1 ? 'file' : 'files'
 
         lines = []
-        lines << "<details#{open_attr}>"
+        lines << '<details>'
         lines << "<summary><strong>#{group_name}</strong> \u2014 #{group_pct}% covered " \
                  "(#{total_lines} lines across #{file_count} #{file_word})</summary>"
         lines << '' # blank line required for GitHub markdown table rendering
